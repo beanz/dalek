@@ -3,20 +3,59 @@
 __asm volatile ("nop");
 #endif
 
-// Because we're adjusting the PWM speeds (see TCCR0B and TCCR1B) we're also adjusting the millis() and similar clocks so we must remember to multiply durations by this!
+// Uncomment next line if you're Benjie
+//#define L298N_MODE 1
+// Uncomment next line if you're Bracken
+//#define SN754410_MODE 1
+// Uncomment next line if you're using the Roboclaw motor controller
+#define ROBOCLAW_MODE 1
+
+#ifdef ROBOCLAW_MODE
+
+/*
+  ROBOCLAW_MODE is based on
+    examples/PacketSerialSimplePWM/PacketSerialSimplePWM.ino
+
+  from:
+
+    http://downloads.ionmc.com/code/arduino.zip
+
+   It requires RoboClaw.cpp and RoboClaw.h from the above zip to be
+   placed in directory $HOME/Arduino/libraries/RoboClaw
+
+   It assumes M1 is left motor and M2 is right motor and arduino pins
+   10 (RX) and 11 (TX) are connected to RoboClaw S2 and S1 respectively.
+*/
+
+// ROBOCLAW_MODE doesn't change the PWM speeds
+#define TIME_MULTIPLIER 1
+
+#else
+
+// Because we're adjusting the PWM speeds (see TCCR0B and TCCR1B)
+// we're also adjusting the millis() and similar clocks so we must
+// remember to multiply durations by this!
 #define TIME_MULTIPLIER 64
+
+#endif
+
 // Maximum command length, including initial command code and terminating \n
 // (2 bytes more than the maximum payload)
 #define BUFFER_SIZE 64
 // Watchdog timer duration in milliseconds
 #define WATCHDOG_TIMER_DURATION 100
 
-// Uncomment next line if you're Benjie
-//#define L298N_MODE 1
-// Uncomment next line if you're Bracken
-//#define SN754410_MODE 1
+#ifdef ROBOCLAW_MODE
 
-#ifdef L298N_MODE
+#include <SoftwareSerial.h>
+#include "RoboClaw.h"
+//See limitations of Arduino SoftwareSerial
+SoftwareSerial serial(10,11);
+RoboClaw roboclaw(&serial,10000);
+
+#define address 0x80
+
+#elif defined L298N_MODE
 int leftForwardPin = 12;
 int leftBackwardPin = 11;
 int leftEnablePin = 10;
@@ -44,12 +83,20 @@ long last_command_time = 0;
 
 // the setup routine runs once when you press reset:
 void setup()  {
+
+  memset(buffer, 0, BUFFER_SIZE+1);
+  pinMode(ledPin, OUTPUT);
+
+#ifdef ROBOCLAW_MODE
+  roboclaw.begin(38400);
+  roboclaw.ForwardM1(address, 0); //start Motor1 forward at half speed
+  roboclaw.BackwardM2(address, 0); //start Motor2 backward at half speed
+
+#else
   //increase PWM freq beyond audible range
   TCCR0B = TCCR0B & 0b11111000 | 1; //set PWM ports 5 & 6 to 62.5KHz AFFECTS MILIS AND DELAY
   TCCR1B = TCCR1B & 0b11111000 | 1; //set PWM ports 9 & 10 to ~31KHz
-  
-  memset(buffer, 0, BUFFER_SIZE+1);
-  pinMode(ledPin, OUTPUT);
+
   pinMode(leftForwardPin, OUTPUT);
   pinMode(leftBackwardPin, OUTPUT);
   pinMode(rightForwardPin, OUTPUT);
@@ -73,6 +120,7 @@ void setup()  {
   analogWrite(leftBackwardPin, 255);
   analogWrite(rightForwardPin, 255);
   analogWrite(rightBackwardPin, 255);
+#endif
 #endif
   Serial.begin(115200);
   last_command_time = millis();
@@ -112,7 +160,20 @@ int cmdMotor(char *str, int len) {
 }
 
 void go(int left, int right) {
-#ifdef L298N_MODE
+#ifdef ROBOCLAW_MODE
+  if (left >= 0) {
+    roboclaw.ForwardM1(address, left/2);
+  } else {
+    roboclaw.BackwardM1(address, abs(left/2));
+  }
+
+  if (right >= 0) {
+    roboclaw.ForwardM2(address, right/2);
+  } else {
+    roboclaw.BackwardM2(address, abs(right/2));
+  }
+
+#elif defined L298N_MODE
   if (left >= 0) {
     digitalWrite(leftForwardPin, HIGH);
     digitalWrite(leftBackwardPin, LOW);
