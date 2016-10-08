@@ -24,7 +24,7 @@ __asm volatile ("nop");
    placed in directory $HOME/Arduino/libraries/RoboClaw
 
    It assumes M1 is left motor and M2 is right motor and arduino pins
-   10 (RX) and 11 (TX) are connected to RoboClaw S2 and S1 respectively.
+   9 (RX) and 10 (TX) are connected to RoboClaw S2 and S1 respectively.
 */
 
 // ROBOCLAW_MODE doesn't change the PWM speeds
@@ -50,7 +50,7 @@ __asm volatile ("nop");
 #include <SoftwareSerial.h>
 #include "RoboClaw.h"
 //See limitations of Arduino SoftwareSerial
-SoftwareSerial serial(10,11);
+SoftwareSerial serial(9, 10);
 RoboClaw roboclaw(&serial,10000);
 
 #define address 0x80
